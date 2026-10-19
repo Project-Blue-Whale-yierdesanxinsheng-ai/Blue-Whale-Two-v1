@@ -1,0 +1,23 @@
+# Blue Whale AGI Core · dependencies
+#
+# 当前版本：**零第三方依赖**。全部使用 Python 3.8+ 标准库。
+#
+# 用到的标准库：
+#   os, sys, re, json, math, sqlite3, urllib(request/error), importlib,
+#   collections, shutil, time, io
+#
+# 验证方式：
+#   python -c "import sys; print(sys.version)"
+#   python main.py
+#
+# 如果你要接真硬件，再装下面这些（**当前版本不需要**）：
+#
+#   # 树莓派
+#   # adafruit-blinka>=8.0
+#   # adafruit-circuitpython-dht>=4.0
+#
+#   # ESP32 侧不在这里装 —— 用 MicroPython 的 mip/ampy 单独上传
+#   # 见 08_edge_deployment/edge_sdk.md
+#
+# 所以本文件为空：没有需要 pip install 的包。
+# This file is intentionally empty: no third-party packages required.
