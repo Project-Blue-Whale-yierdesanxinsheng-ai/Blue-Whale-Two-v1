@@ -1,0 +1,29 @@
+.gitignore
+# Python 缓存
+__pycache__/
+pycache/
+*.pyc
+*.pyo
+*.pyd
+
+# 备份与临时
+backup/
+temp/
+*.tmp
+*.log
+
+# 环境与凭据
+.env
+.env.*
+*.pem
+*.key
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
