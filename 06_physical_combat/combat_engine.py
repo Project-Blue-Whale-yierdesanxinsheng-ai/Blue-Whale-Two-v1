@@ -232,6 +232,125 @@ class PhysicalCombatEngine:
         }
 
 
+    # ══════════════ ⑤ 视听联动（Phase 14） ══════════════
+    def visual_threat(self, distance_front, safe):
+        """用**看到的距离**重算博弈。眼睛比计算更快 —— 但也要算得对。
+
+        safe: calculate_safe_distance() 的结果（可含 safe_zone）
+        """
+        d = float(distance_front)
+        en = float(safe.get("enemy_reach", 0) or 0)
+        me = float(safe.get("my_reach", 0) or 0)
+        zone = safe.get("safe_zone")
+
+        out = {"distance_front": d, "enemy_reach": en, "my_reach": me,
+               "safe_zone": zone}
+
+        # ① 已进入对方攻击范围
+        if d <= en:
+            out["level"] = "极危"
+            out["critical"] = True
+            out["reason"] = ("看到正前方 %.2fm ≤ 对方臂展 %.2fm → "
+                             "**已在其攻击范围内**，立刻进入防御" % (d, en))
+        # ② 跌破安全区内界（我能打他、他够不到我的那条带子被入侵）
+        elif zone and d < float(zone[0]):
+            out["level"] = "危险"
+            out["critical"] = True
+            out["reason"] = ("看到 %.2fm 跌破安全区内界 %.2fm → 优势正在丧失"
+                             % (d, float(zone[0])))
+        # ③ 我还够不到
+        elif d > me:
+            out["level"] = "距离外"
+            out["critical"] = False
+            out["reason"] = ("看到 %.2fm > 我的臂展 %.2fm → 双方都够不到" % (d, me))
+        else:
+            out["level"] = "交换区"
+            out["critical"] = False
+            out["reason"] = ("看到 %.2fm 在双方臂展之间 → 交换区，比拼时机" % d)
+
+        out["posture"] = "防御优先" if out["critical"] else "观察"
+        return out
+
+    def audio_alert(self, sound_db, sound_freq=None):
+        """用**听到的声音**判预警。**高分贝不等于该进攻，可能该卸力。**"""
+        db = float(sound_db)
+        fr = float(sound_freq) if sound_freq is not None else None
+        out = {"sound_db": db, "sound_freq": fr, "alert": False}
+
+        if db > 80.0:
+            out["alert"] = True
+            out["level"] = "警报"
+            out["reason"] = ("听到 %.0f dB > 80 → **高频/高分贝警示**，"
+                             "不确定来源，先卸力不主动进攻" % db)
+            out["elements"] = ["土", "水"]
+            out["posture"] = "预警"
+            out["actions"] = [("土·矮身卸力", 0.55), ("水·顺劲化开", 0.45)]
+        elif fr is not None and fr < 30.0:
+            out["alert"] = True
+            out["level"] = "低频异常"
+            out["reason"] = ("听到主频 %.0f Hz 的沉闷低频 → 大地/重物震动异常，"
+                             "先稳桩" % fr)
+            out["elements"] = ["土"]
+            out["posture"] = "稳桩"
+            out["actions"] = [("土·稳桩", 0.40)]
+        else:
+            out["level"] = "安静"
+            out["reason"] = ("声音 %.0f dB%s → 在正常带，不预警"
+                             % (db, "" if fr is None else " / %.0f Hz" % fr))
+            out["elements"] = []
+            out["posture"] = "常态"
+            out["actions"] = []
+        return out
+
+    def multimodal_posture(self, sensory, safe):
+        """视听两路合流 → 一个姿态。**任何一路报危，都按危处理。**"""
+        vis = self.visual_threat(sensory.get("distance_front", 99.0), safe)
+        aud = self.audio_alert(sensory.get("sound_db", 0.0),
+                               sensory.get("sound_freq"))
+
+        acts, elements, reasons = [], [], []
+        priority = "常态"
+        level = "低"
+
+        # 视觉极危 → 最高优先，防御
+        if vis.get("critical"):
+            priority = "防御"
+            level = "极高"
+            reasons.append(vis["reason"])
+            acts.append(("土·卸力卸根", 0.60))
+            acts.append(("水·化劲后撤", 0.70))
+            elements += ["土", "水"]
+
+        # 听觉警报 → 预警（不主动进攻）
+        if aud.get("alert"):
+            reasons.append(aud["reason"])
+            if priority != "防御":
+                priority = "预警"
+                level = "高"
+            acts += list(aud.get("actions", []))
+            elements += list(aud.get("elements", []))
+
+        # 去重
+        seen = set()
+        uniq = []
+        for nm, it in acts:
+            if nm in seen:
+                continue
+            seen.add(nm)
+            uniq.append((nm, it))
+
+        return {
+            "priority": priority,
+            "danger": level,
+            "elements": list(dict.fromkeys(elements)),
+            "actions": uniq,
+            "reason": "；".join(reasons) if reasons else "视听均无异常",
+            "visual": vis,
+            "audio": aud,
+            "critical": bool(vis.get("critical")),
+        }
+
+
 class BruceLeeFootwork:
     """李小龙步法：动态蓄能。
 

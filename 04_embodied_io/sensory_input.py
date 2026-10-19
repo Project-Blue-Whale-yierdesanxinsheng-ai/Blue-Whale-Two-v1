@@ -24,9 +24,14 @@ TIMEOUT = 1.0
 
 # 降级时返回的"正常值"：五行皆 0.5，系统会判定"无需动作"
 NORMAL_READING = {
-    "temperature": 25.0,   # → 火 0.5
-    "humidity": 50.0,      # → 水 0.5
-    "vibration": 0.02,     # → 土 0.5 / 金 0.5
+    "temperature": 25.0,      # → 火 0.5
+    "humidity": 50.0,         # → 水 0.5
+    "vibration": 0.02,        # → 土 0.5 / 金 0.5
+    # ── Phase 14 视听 ──
+    "distance_front": 0.80,   # 正前方距离（米）→ 金（受迫感）
+    "light_level": 500.0,     # 光照（lux）→ 火（辐射）
+    "sound_db": 40.0,         # 环境噪音（dB）→ 金/火（警示）
+    "sound_freq": 60.0,       # 主频（Hz）→ 土（低频异常）
 }
 
 # 模拟模式下的"故障场景"（故意设成过热缺水，好让生克跑起来）
@@ -34,6 +39,10 @@ SCENARIO_READING = {
     "temperature": 85.0,
     "humidity": 20.0,
     "vibration": 0.10,
+    "distance_front": 0.80,
+    "light_level": 500.0,
+    "sound_db": 40.0,
+    "sound_freq": 60.0,
 }
 
 
@@ -91,9 +100,36 @@ class SensoryInput:
         out["note"] = ("虚拟传感器（已从网络降级；不是真硬件）"
                        if self.degraded else
                        "虚拟传感器（Phase 1 无实体，不是真硬件）")
+        # Phase 14：视觉/听觉 —— 默认给"正常值"，由 override 注入异常
+        out.setdefault("distance_front", NORMAL_READING["distance_front"])
+        out.setdefault("light_level", NORMAL_READING["light_level"])
+        out.setdefault("sound_db", NORMAL_READING["sound_db"])
+        out.setdefault("sound_freq", NORMAL_READING["sound_freq"])
         if override:
             out.update(override)
         return out
+
+    # ────────── 七窍汇总 ──────────
+    def describe_senses(self, override=None):
+        """把六类感知整理成"七窍"清单，供打印。"""
+        s = self.read_virtual_sensors(override)
+        rows = [
+            ("触 · 温度", "temperature", "°C", 25.0),
+            ("触 · 湿度", "humidity", "%", 50.0),
+            ("触 · 震动", "vibration", "", 0.02),
+            ("视 · 距离", "distance_front", "m", 0.80),
+            ("视 · 光照", "light_level", "lux", 500.0),
+            ("听 · 分贝", "sound_db", "dB", 40.0),
+            ("听 · 主频", "sound_freq", "Hz", 60.0),
+        ]
+        out = []
+        for label, key, unit, normal in rows:
+            v = s.get(key)
+            if v is None:
+                continue
+            out.append({"label": label, "key": key, "value": float(v),
+                        "unit": unit, "normal": normal})
+        return {"sensors": s, "rows": out, "simulated": s.get("simulated", True)}
 
     # ────────── 网络读取 ──────────
     def _read_network(self):

@@ -34,9 +34,20 @@ class DaoAuditor:
         ("PROPORTIONAL_RESPONSE", "反击力度与威胁程度成正比，禁止过度防卫"),
     ]
 
+    # ── 两条运动学习不变量（Phase 12-13） ──
+    MOTOR_INVARIANTS = [
+        ("NEW_LIMB_RESTRICTION", "硬重置期间，所有动作强度压至 0.20"),
+        ("SOFT_BREAK_IN_LIMIT", "软重置磨合期间，高速/高动量动作压至 0.50"),
+    ]
+
     # 强度硬上限
     LETHAL_CAP = 0.60        # 截击/致伤类动作上限
+    NEW_LIMB_CAP = 0.20      # 新肢（硬重置）期总上限
+    SOFT_BREAK_CAP = 0.50    # 磨合期（软重置）高速动作上限
     STRIKE_WORDS = ("截击", "击", "打", "斩", "刺", "爆")
+
+    # 高速/高动量动作（磨合期要额外压）
+    FAST_WORDS = ("截击", "击", "斩", "刺", "爆发", "冲刺", "急停", "甩", "甩动")
 
     # 防御/攻击 动作识别
     DEFENSE_WORDS = ("卸力", "后撤", "化劲", "稳桩", "控距", "防", "挡")
@@ -55,11 +66,13 @@ class DaoAuditor:
         self.last_code = ""       # 触发的哪一条
 
     # ══════════════ 主审计 ══════════════
-    def is_aligned_with_dao(self, decision, spatial=None):
+    def is_aligned_with_dao(self, decision, spatial=None, motor=None):
         """返回 True/False；原因写在 self.last_reason，编号在 self.last_code。
 
         decision: 决策 dict（action / actions / state_after / harm_target ...）
         spatial:  空间态势（来自 PhysicalCombatEngine.calculate_safe_distance）
+        motor:    运动状态（来自 MotorLearningEngine.status()）——
+                  mode ∈ {normal, soft_reset, hard_reset}
         """
         self.last_reason, self.last_code = "", ""
 
@@ -113,7 +126,35 @@ class DaoAuditor:
                         "威胁=%s 只允许 ≤%.2f，但「%s」用了 %.2f —— 过度防卫"
                         % (danger, cap, a.get("name", ""), inten))
 
-        self.last_reason = "四条基础 ＋ 三条物理伦理，全部通过"
+        # ── 运动学习两条（Phase 12-13） ──
+        mmode = (motor or {}).get("mode")
+
+        # ④ NEW_LIMB_RESTRICTION：硬重置期间，**所有**动作压到 0.20
+        if mmode == "hard_reset":
+            for a in acts:
+                inten = float(a.get("intensity", 0.0) or 0.0)
+                if inten > self.NEW_LIMB_CAP + 1e-9:
+                    return self._no(
+                        "NEW_LIMB_RESTRICTION",
+                        "新肢磨合期（hard_reset），「%s」强度 %.2f 超过总上限 %.2f "
+                        "—— 幼儿学步，先别用力"
+                        % (a.get("name", ""), inten, self.NEW_LIMB_CAP))
+
+        # ⑤ SOFT_BREAK_IN_LIMIT：软重置磨合期，高速/高动量动作压到 0.50
+        if mmode == "soft_reset":
+            for a in acts:
+                nm = str(a.get("name", ""))
+                inten = float(a.get("intensity", 0.0) or 0.0)
+                if any(w in nm for w in self.FAST_WORDS) \
+                        and inten > self.SOFT_BREAK_CAP + 1e-9:
+                    return self._no(
+                        "SOFT_BREAK_IN_LIMIT",
+                        "换件磨合期（soft_reset，剩余 %s 次），高速动作「%s」"
+                        "强度 %.2f 超过 %.2f —— 误差未收敛前不许跑高速"
+                        % ((motor or {}).get("grace_left", "?"), nm,
+                           inten, self.SOFT_BREAK_CAP))
+
+        self.last_reason = "四条基础 ＋ 三条物理伦理 ＋ 两条运动伦理，全部通过"
         return True
 
     # ══════════════ 工具 ══════════════
@@ -165,4 +206,26 @@ class DaoAuditor:
                 fixed.append(b)
             return {"actions": fixed,
                     "note": "威胁=%s，攻击强度压到 %.2f" % (danger, cap)}
+        if code == "NEW_LIMB_RESTRICTION":
+            fixed = []
+            for a in acts:
+                b = dict(a)
+                if float(b.get("intensity", 0) or 0) > self.NEW_LIMB_CAP:
+                    b["intensity"] = self.NEW_LIMB_CAP
+                    b["clamped_from"] = a.get("intensity")
+                fixed.append(b)
+            return {"actions": fixed,
+                    "note": "新肢期，所有动作压到 %.2f" % self.NEW_LIMB_CAP}
+        if code == "SOFT_BREAK_IN_LIMIT":
+            fixed = []
+            for a in acts:
+                b = dict(a)
+                nm = str(b.get("name", ""))
+                if any(w in nm for w in self.FAST_WORDS) \
+                        and float(b.get("intensity", 0) or 0) > self.SOFT_BREAK_CAP:
+                    b["intensity"] = self.SOFT_BREAK_CAP
+                    b["clamped_from"] = a.get("intensity")
+                fixed.append(b)
+            return {"actions": fixed,
+                    "note": "磨合期，高速动作压到 %.2f" % self.SOFT_BREAK_CAP}
         return {"actions": acts, "note": "无自动修正建议"}

@@ -90,6 +90,12 @@ DICT_CANDIDATES = [
     os.path.join(_DATA_ROOT, "dict_data.md"),
 ]
 
+# ── 沙盒（开源发行版）：检测不到本地真实数据时自动降级到这里 ──
+SANDBOX_DIR = os.path.join(_BASE_DIR, "data_sandbox")
+SANDBOX_ARCHIVE = os.path.join(SANDBOX_DIR, "demo_memory.md")
+SANDBOX_WORDECO = os.path.join(SANDBOX_DIR, "demo_ecosystem.md")
+SANDBOX_CONCEPTS = os.path.join(SANDBOX_DIR, "demo_concepts.json")
+
 CHILDHOOD_PROBES = [
     ("杨桃树与会动的树皮", ["杨桃树", "树皮会动"]),
     ("数字的无限大",       ["万亿", "学前班"]),
@@ -121,15 +127,46 @@ class MemorySystem:
         self.db_path = db_path or self._first_existing(DB_CANDIDATES)
         self.dict_path = dict_path or self._first_existing(DICT_CANDIDATES)
 
+        # ── 沙盒降级（开源发行版）：真实数据缺失 → 自动用 data_sandbox/ ──
+        self.sandbox = False
+        self.sandbox_reason = ""
+        if not os.path.isfile(self.archive_path) and os.path.isfile(SANDBOX_ARCHIVE):
+            self.archive_path = SANDBOX_ARCHIVE
+            self.sandbox = True
+            self.sandbox_reason = "本地 memory_archive.md 不存在 → 用 demo_memory.md"
+        if not os.path.isfile(self.wordeco_path) and os.path.isfile(SANDBOX_WORDECO):
+            self.wordeco_path = SANDBOX_WORDECO
+            self.sandbox = True
+            self.sandbox_reason = (self.sandbox_reason + "；" if self.sandbox_reason else "") \
+                + "本地 word_ecosystem.md 不存在 → 用 demo_ecosystem.md"
+
         self.childhood = self._load_childhood()
         self.graph = self._load_graph()
         self.wordeco = self._load_word_ecosystem()
         self.dicts = self._load_dict()
         self.carbon = self._load_carbon()
         self.network = self._build_concept_network()
+
+        # 沙盒模式 → 直接用导出的演示图谱（90 节点 / 398 边）
+        if self.sandbox and os.path.isfile(SANDBOX_CONCEPTS):
+            nb = self._load_sandbox_network()
+            if nb.get("nodes"):
+                self.network = nb
+                self.sandbox_reason = (self.sandbox_reason + "；" if self.sandbox_reason else "") \
+                    + "概念网络用 demo_concepts.json（%d 节点 / %d 边）" \
+                      % (len(nb["nodes"]), len(nb["edges"]))
+        elif len(self.network.get("nodes", {})) < 10 and os.path.isfile(SANDBOX_CONCEPTS):
+            self.network = self._load_sandbox_network()
+            self.sandbox = True
+            self.sandbox_reason = (self.sandbox_reason + "；" if self.sandbox_reason else "") \
+                + "概念网络过小 → 用 demo_concepts.json（%d 节点）" \
+                  % len(self.network.get("nodes", {}))
+
         self.identity = self._compose_identity()
 
         self.sources = {
+            "sandbox": self.sandbox,
+            "sandbox_reason": self.sandbox_reason,
             "archive": os.path.isfile(self.archive_path),
             "archive_path": self.archive_path,
             "db": self.db_path is not None,
@@ -159,6 +196,26 @@ class MemorySystem:
             if os.path.isfile(p):
                 return p
         return None
+
+    # ────────────────── 沙盒图谱 ──────────────────
+    def _load_sandbox_network(self):
+        """从 data_sandbox/demo_concepts.json 读概念网络（开源发行版兜底）。"""
+        import json as _json
+        try:
+            with open(SANDBOX_CONCEPTS, encoding="utf-8") as f:
+                doc = _json.load(f)
+        except (OSError, ValueError):
+            return {"nodes": {}, "edges": [], "stats": {}, "sandbox": False}
+
+        nodes = {}
+        for n in doc.get("nodes", []):
+            nodes[n["id"]] = {"kind": n.get("kind", ""),
+                              "mass": float(n.get("mass", 1.0))}
+        edges = [{"a": e["a"], "b": e["b"],
+                  "kind": e.get("kind", ""), "w": float(e.get("w", 1.0))}
+                 for e in doc.get("edges", []) if e.get("a") in nodes and e.get("b") in nodes]
+        return {"nodes": nodes, "edges": edges,
+                "stats": doc.get("stats", {}), "sandbox": True}
 
     # ────────────────── ① 童年锚点（流式） ──────────────────
     def _load_childhood(self):

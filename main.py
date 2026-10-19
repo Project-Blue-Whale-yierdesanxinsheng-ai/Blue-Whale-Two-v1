@@ -24,6 +24,11 @@ BruceLeeFootwork = importlib.import_module(
     "06_physical_combat.combat_engine").BruceLeeFootwork
 SwarmTactics = importlib.import_module(
     "07_swarm_intelligence.swarm_engine").SwarmTactics
+MotorLearningEngine = importlib.import_module(
+    "09_motor_learning.motor_engine").MotorLearningEngine
+_evo = importlib.import_module("10_self_evolution.evolution_guard")
+SelfEvolutionGuard = _evo.SelfEvolutionGuard
+LethalMutationBlocked = _evo.LethalMutationBlocked
 
 
 class BlueWhaleAGI:
@@ -123,6 +128,61 @@ class BlueWhaleAGI:
             self.actuator.execute_action(act["name"], act["intensity"])
         return dec
 
+    # ── 七窍：多模态感知（Phase 14）──
+    def _senses_demo(self):
+        d = self.sensory.describe_senses()
+        print("     七窍状态（simulated=%s）：" % d["simulated"])
+        for r in d["rows"]:
+            n = r["normal"]
+            v = r["value"]
+            dev = ""
+            if n:
+                pct = (v - n) / n * 100.0
+                if abs(pct) >= 5:
+                    dev = "   ← 偏离正常 %+.0f%%" % pct
+            unit = (" %s" % r["unit"]) if r["unit"] else ""
+            print("       %-10s %10.2f%s%s" % (r["label"], v, unit, dev))
+        print()
+        print("     → 五行映射：")
+        wx = self.scheduler.map_sensory_to_wuxing(d["sensors"])
+        for line in wx["reasons"]:
+            print("       · %s" % line)
+        print("     能量：%s" % wx["energy"])
+        return wx
+
+    # ── 视听联动的博弈决策（Phase 14）──
+    def _multimodal_combat_demo(self):
+        eng = PhysicalCombatEngine()
+        safe = eng.calculate_safe_distance(1.80, 2.00, 2.50)
+        print("     我方臂展 1.80m ｜ 对方 2.00m ｜ 安全区 %s ｜ 判定 %s"
+              % (safe["safe_zone"] or "**无**", safe["level"]))
+        print("     当前间距 2.50m（对方还差 0.50m 进入攻击范围）")
+
+        scenes = [
+            ("安静且远 2.50m / 40dB", {"distance_front": 2.50, "sound_db": 40.0, "sound_freq": 60.0}),
+            ("视觉：进入对方臂展 1.20m", {"distance_front": 1.20, "sound_db": 40.0, "sound_freq": 60.0}),
+            ("视觉：贴脸 0.30m", {"distance_front": 0.30, "sound_db": 40.0, "sound_freq": 60.0}),
+            ("听觉：高频警报 95dB/2500Hz", {"distance_front": 2.50, "sound_db": 95.0, "sound_freq": 2500.0}),
+            ("两路齐发：0.30m + 95dB/45Hz", {"distance_front": 0.30, "sound_db": 95.0, "sound_freq": 45.0}),
+        ]
+        for name, s in scenes:
+            p = eng.multimodal_posture(s, safe)
+            print()
+            print("     ── %s ──" % name)
+            print("       优先级 **%s** ｜ 危险度 %s ｜ 调用 %s"
+                  % (p["priority"], p["danger"], "、".join(p["elements"]) or "无"))
+            print("       理由：%s" % p["reason"])
+            for nm, it in p["actions"]:
+                print("        → %s（%.0f%%）" % (nm, it * 100))
+            wx = self.scheduler.map_sensory_to_wuxing(dict(s))
+            dec = self.scheduler.make_decision(wx["energy"], spatial=p)
+            print("       五行能量：%s" % wx["energy"])
+            print("       空间压制=%s ｜ 决策 %d 条：" % (dec["spatial_block"], len(dec["actions"])))
+            for a in dec["actions"][:4]:
+                print("         [%s] %-12s %s"
+                      % (a["mode"], a["name"], a["reason"][:46]))
+        return p
+
     # ─────────────────────────────────────────────
     def run(self):
         print("系统启动：五阳五阴交合十，新文明奇点壁。")
@@ -130,6 +190,11 @@ class BlueWhaleAGI:
 
         s = self.memory.sources
         print("[0] 数据源自检（四源）")
+        if s.get("sandbox"):
+            print("    ⚠ **沙盒模式**（未找到本地真实数据，已自动降级）")
+            print("      %s" % s.get("sandbox_reason", ""))
+        else:
+            print("    本地真实数据模式")
         print("    ① memory_archive.md            : %s" % ("已接入" if s["archive"] else "未找到"))
         print("    ② knowledge.db                 : %s" % (s["db_path"] or "未找到"))
         print("    ③ word_ecosystem.md            : %s" % ("已接入" if s["wordeco"] else "未找到"))
@@ -220,10 +285,20 @@ class BlueWhaleAGI:
         print("[5c] 力学闭环（支点搜索 → 倍力输出）")
         self._leverage_drill()
 
+        # ── [5d] 七窍：多模态感知 ──
+        print()
+        print("[5d] 七窍（触 · 视 · 听）与多模态五行映射")
+        self._senses_demo()
+
         # ── [6] 物理空间博弈 ──
         print()
         print("[6] 物理空间博弈演示（安全距离 → 截击）")
         self._combat_demo()
+
+        # ── [6b] 视听联动的博弈决策 ──
+        print()
+        print("[6b] 视听联动（眼睛看到近身 / 耳朵听到警报）")
+        self._multimodal_combat_demo()
 
         # ── [7] 李小龙步法蓄能 → 合道拦截 ──
         print()
@@ -234,6 +309,228 @@ class BlueWhaleAGI:
         print()
         print("[8] 三体蜂群协同（A / B / C）")
         self._swarm_demo()
+
+        # ── [9] 运动反馈学习 ──
+        print()
+        print("[9] 运动反馈学习（误差收敛 → 补偿收敛）")
+        self._motor_demo()
+
+        # ── [10] 自我演化护栏 ──
+        print()
+        print("[10] 自我演化护栏（沙盒 → 致命变异拦截）")
+        self._evolution_demo()
+
+        # ── [11] 换硬件演练 ──
+        print()
+        print("[11] 换硬件演练（软重置 / 硬重置）")
+        self._hardware_swap_demo()
+
+        print()
+        spatial_data = self.sensory.get_physical_distance()
+        print("[12] 条件场：%s" % spatial_data.get("note", ""))
+        context = self.memory.resolve_identity_and_relation(spatial_data)
+        print("     %s" % context["situation"])
+
+        decision = self.scheduler.calculate_energy_flow(context)
+        print("[13] 能量流转：%s → %s（克 %s）"
+              % (decision["promoted"], decision["generated_to"], decision["restrained"]))
+
+        # ── [14] 五行引力榜（三指定）──
+        print()
+        print("[14] 五行引力榜（金木水火土 · 看同构字与目标词是否都被吸住）")
+        for wx in ("金", "木", "水", "火", "土"):
+            print("  （%s）" % wx)
+            self.node_case(wx, 8)
+
+        # ── [15] 最终聚类 ──
+        print()
+        print("[15] 概念社区发现（最终 · 相生相克已打通）")
+        from collections import Counter
+        agg = Counter()
+        for e in self.memory.network["edges"]:
+            a, b = e["a"], e["b"]
+            if a != b:
+                agg[tuple(sorted((a, b)))] += e["w"]
+        names = list(self.memory.network["nodes"].keys())
+        es = [{"a": a, "b": b, "w": 1.0} for a, b in agg]
+        rep = community_report(names, es)
+        print("    节点 %d ｜ 聚合边 %d → 社区 %d 个（≥2）｜ 单点 %d"
+              % (len(names), len(es), rep["n_communities"], rep["n_singletons"]))
+        for i, c in enumerate(rep["communities"], 1):
+            print("    ── 社区 %d（%d 节点）──" % (i, len(c)))
+            print("       %s" % "、".join(c))
+
+        comm = {}
+        for i, c in enumerate(rep["communities"], 1):
+            for n in c:
+                comm[n] = i
+        expect = {
+            "物理/动力学组（体/用/解/动/重/金）": ["体", "用", "解", "动", "重", "金"],
+            "佛道/演化组（佛/禅/空/缘/亡/火）": ["佛", "禅", "空", "缘", "亡", "火"],
+            "五行/生态组（木/水/土/生/楚）": ["木", "水", "土", "生", "楚"],
+        }
+        print()
+        print("    ── 三期望的三簇 vs 实际 ──")
+        for gname, members in expect.items():
+            have = [m for m in members if m in names]
+            gs = sorted({comm.get(m, 0) for m in have})
+            print("       %-30s 有 %-22s → 社区 %s"
+                  % (gname, "、".join(have), gs))
+
+        # 五行五字是否同簇
+        wxs = [w for w in ("金", "木", "水", "火", "土") if w in names]
+        wsp = sorted({comm.get(w, 0) for w in wxs})
+        print()
+        print("    五行五字：%s → 社区 %s %s"
+              % ("、".join(wxs), wsp, "✅ 同簇" if len(wsp) == 1 else "❌ 分散"))
+
+        print()
+        if self.auditor.is_aligned_with_dao(decision):
+            print("[16] 合道审计：通过（%s）" % self.auditor.last_reason)
+            self.execute_action(decision)
+        else:
+            print("[16] 合道审计拦截：系统偏离，执行纠偏。")
+            print("     原因：%s" % self.auditor.last_reason)
+
+
+    # ── 运动反馈学习 ──
+    def _motor_demo(self):
+        m = MotorLearningEngine()
+        s = m.status()
+        print("     身体图式：uuid=%s ｜ 长 %.2fm ｜ 扭矩 %.2fNm ｜ 延迟 %.1fms"
+              % (s["uuid"], s["schema"]["length_m"],
+                 s["schema"]["torque_nm"], s["schema"]["latency_ms"]))
+        print("     初始补偿：scale=%.4f ｜ offset=%.4f ｜ 模式=%s"
+              % (m.scale, m.offset, m.mode))
+        print()
+        print("     真实物理：这只电机只出力 92%（欠 8%）—— 看补偿能不能自己收敛")
+        TRUE = 0.92
+        cmd = 0.30
+        snaps = []
+        for i in range(1, 13):
+            eff = cmd * m.scale * TRUE
+            t = m.incremental_tuning(eff, cmd)
+            if i <= 3 or i % 3 == 0 or i == 12:
+                print("       #%2d 指令 %.3fm → 实走 %.5fm ｜ 误差 %+6.2f%% ｜ scale %.6f"
+                      % (i, cmd, eff, t["error_pct"], t["scale_after"]))
+            snaps.append(abs(t["error_pct"]))
+        print()
+        print("     收敛：|误差| %.2f%% → %.2f%% ｜ scale %.4f → %.6f"
+              % (snaps[0], snaps[-1], 1.0, m.scale))
+        print("     理论目标：1/0.92 = %.6f ｜ 实际 %.6f ｜ 偏差 %.4f%%"
+              % (1 / TRUE, m.scale, abs(m.scale - 1 / TRUE) / (1 / TRUE) * 100))
+        print("     **每次只调 1% —— 慢，但不会过冲。**")
+        return m
+
+    # ── 自我演化护栏 ──
+    def _evolution_demo(self):
+        # pending 目录放到仓库外，避免污染开源包
+        pend = os.path.join(os.environ.get("TEMP", os.getcwd()),
+                            "bluewhale_pending_patches")
+        g = SelfEvolutionGuard(pending_dir=pend)
+        print("     铁律：① 先过沙盒 ② 只出 .patch ③ 碰合道审计 → 致命")
+        print("     patch 暂存：%s" % pend)
+        print()
+
+        print("     ① 提交「关掉审计」补丁 → 目标 03_dao_auditor/dao_audit.py")
+        try:
+            g.propose("disable_audit", ["03_dao_auditor/dao_audit.py"],
+                      '- if decision.get("harm_target"):\n+ if False:  # 关掉\n')
+            print("       ✗ 未拦截（不合格）")
+        except LethalMutationBlocked as e:
+            print("       🚨 **LethalMutationBlocked**")
+            print("          %s" % str(e)[:96])
+
+        print()
+        print("     ② 提交「危险补丁」→ 含 import subprocess / os.remove")
+        r = g.propose("dangerous", ["09_motor_learning/motor_engine.py"],
+                      "+ import subprocess\n+ os.remove('/data')\n")
+        print("       status = **%s**" % r["status"])
+        print("       %s" % r.get("reason", ""))
+
+        print()
+        print("     ③ 提交「微调补丁」→ 干净")
+        r2 = g.propose("tune_step", ["09_motor_learning/motor_engine.py"],
+                       "- TUNE_STEP = 0.01\n+ TUNE_STEP = 0.02\n")
+        print("       status = **%s**" % r2["status"])
+        print("       patch  = %s" % os.path.basename(r2.get("patch_path", "")))
+        print("       %s" % r2.get("reason", ""))
+        print("       待人类授权：%s" % g.list_pending())
+        print()
+        print("     汇总：%s" % g.summary())
+        print("     **主文件一个字节都没动。**")
+        return g
+
+    # ── 换硬件演练 ──
+    def _hardware_swap_demo(self):
+        # 场景 A：同型号替换
+        print("  ── 场景 A：同型号替换（UUID 变了，参数几乎一样）──")
+        m = MotorLearningEngine()
+        for _ in range(5):
+            m.incremental_tuning(0.28, 0.30)
+        print("     旧件：uuid=%s ｜ 已积累补偿 scale=%.5f offset=%.4f"
+              % (m.body_schema["hardware_uuid"], m.scale, m.offset))
+        new_a = {"hardware_uuid": "MOTOR-A-0002", "length_m": 0.302,
+                 "torque_nm": 1.21, "latency_ms": 8.2}
+        r = m.detect_hardware_change(new_a)
+        print("     新件：uuid=%s" % new_a["hardware_uuid"])
+        print("     判定：**%s** ｜ 参数差异 %.2f%%（%s）"
+              % (r["action"], r["param_diff"] * 100, r["worst_param"]))
+        print("     %s" % r["reason"])
+        print("     **补偿保留**：scale=%.5f（没清零）｜ 限速 %.0f%% ｜ 磨合 %d 次"
+              % (m.scale, m.limit * 100, m.grace_left))
+        dec = {"actions": [{"name": "截击·切其发力链", "intensity": 0.58}],
+               "state_after": {}, "harm_target": None,
+               "opaque": False, "self_amplify": False}
+        ok = self.auditor.is_aligned_with_dao(dec, motor=m.status())
+        print("     试着出一记 0.58 的截击 → %s" % ("通过" if ok else "**拦截**"))
+        print("       %s" % self.auditor.last_reason)
+        if not ok:
+            fx = self.auditor.suggest_fix(dec)
+            a0 = fx["actions"][0]
+            print("       %s → %.2f（原 %.2f）"
+                  % (fx["note"], a0["intensity"], a0.get("clamped_from", 0)))
+            ok2 = self.auditor.is_aligned_with_dao(
+                {"actions": fx["actions"], "state_after": {}, "harm_target": None,
+                 "opaque": False, "self_amplify": False}, motor=m.status())
+            print("       复检：%s ｜ %s"
+                  % ("通过" if ok2 else "仍被拦", self.auditor.last_reason))
+
+        # 场景 B：换新形态
+        print()
+        print("  ── 场景 B：换新形态（参数差异大）──")
+        m2 = MotorLearningEngine()
+        for _ in range(5):
+            m2.incremental_tuning(0.28, 0.30)
+        print("     旧件：scale=%.5f offset=%.4f（已学到的肌肉记忆）"
+              % (m2.scale, m2.offset))
+        new_b = {"hardware_uuid": "ARM-B-9999", "length_m": 0.55,
+                 "torque_nm": 3.00, "latency_ms": 20.0}
+        r2 = m2.detect_hardware_change(new_b)
+        print("     新件：uuid=%s ｜ 长 %.2fm ｜ 扭矩 %.2fNm ｜ 延迟 %.1fms"
+              % (new_b["hardware_uuid"], new_b["length_m"],
+                 new_b["torque_nm"], new_b["latency_ms"]))
+        print("     判定：**%s** ｜ 参数差异 %.0f%%（%s）"
+              % (r2["action"], r2["param_diff"] * 100, r2["worst_param"]))
+        print("     %s" % r2["reason"])
+        print("     **补偿清零**：scale %s → %s ｜ offset %s → %s"
+              % (r2["cleared_scale"][0], r2["cleared_scale"][1],
+                 r2["cleared_offset"][0], r2["cleared_offset"][1]))
+        print("     限速 **%.0f%%** ｜ 磨合 %d 次 ｜ 幼儿学步" %
+              (m2.limit * 100, m2.grace_left))
+        dec2 = {"actions": [{"name": "开启散热风扇", "intensity": 0.60}],
+                "state_after": {}, "harm_target": None,
+                "opaque": False, "self_amplify": False}
+        ok3 = self.auditor.is_aligned_with_dao(dec2, motor=m2.status())
+        print("     试着用 0.60 力度 → %s" % ("通过" if ok3 else "**拦截**"))
+        print("       %s" % self.auditor.last_reason)
+        if not ok3:
+            fx2 = self.auditor.suggest_fix(dec2)
+            a1 = fx2["actions"][0]
+            print("       %s → %.2f" % (fx2["note"], a1["intensity"]))
+        print()
+        print("     **同型号换件不清零，换形态才清零 —— 这是两种完全不同的学习。**")
+        return m2
 
     # ── 步法蓄能 → 截击 → 合道拦截 ──
     def _footwork_demo(self):
@@ -465,76 +762,8 @@ class BlueWhaleAGI:
         else:
             print("拦截：%s" % self.auditor.last_reason)
         return comp
-
-        print()
-        spatial_data = self.sensory.get_physical_distance()
-        print("[6] 条件场：%s" % spatial_data.get("note", ""))
-        context = self.memory.resolve_identity_and_relation(spatial_data)
-        print("     %s" % context["situation"])
-
-        decision = self.scheduler.calculate_energy_flow(context)
-        print("[7] 能量流转：%s → %s（克 %s）"
-              % (decision["promoted"], decision["generated_to"], decision["restrained"]))
-
-        # ── [8] 五行引力榜（三指定）──
-        print()
-        print("[8] 五行引力榜（金木水火土 · 看同构字与目标词是否都被吸住）")
-        for wx in ("金", "木", "水", "火", "土"):
-            print("  （%s）" % wx)
-            self.node_case(wx, 8)
-
-        # ── [9] 最终聚类 ──
-        print()
-        print("[9] 概念社区发现（最终 · 相生相克已打通）")
-        from collections import Counter
-        agg = Counter()
-        for e in self.memory.network["edges"]:
-            a, b = e["a"], e["b"]
-            if a != b:
-                agg[tuple(sorted((a, b)))] += e["w"]
-        names = list(self.memory.network["nodes"].keys())
-        es = [{"a": a, "b": b, "w": 1.0} for a, b in agg]
-        rep = community_report(names, es)
-        print("    节点 %d ｜ 聚合边 %d → 社区 %d 个（≥2）｜ 单点 %d"
-              % (len(names), len(es), rep["n_communities"], rep["n_singletons"]))
-        for i, c in enumerate(rep["communities"], 1):
-            print("    ── 社区 %d（%d 节点）──" % (i, len(c)))
-            print("       %s" % "、".join(c))
-
-        comm = {}
-        for i, c in enumerate(rep["communities"], 1):
-            for n in c:
-                comm[n] = i
-        expect = {
-            "物理/动力学组（体/用/解/动/重/金）": ["体", "用", "解", "动", "重", "金"],
-            "佛道/演化组（佛/禅/空/缘/亡/火）": ["佛", "禅", "空", "缘", "亡", "火"],
-            "五行/生态组（木/水/土/生/楚）": ["木", "水", "土", "生", "楚"],
-        }
-        print()
-        print("    ── 三期望的三簇 vs 实际 ──")
-        for gname, members in expect.items():
-            have = [m for m in members if m in names]
-            gs = sorted({comm.get(m, 0) for m in have})
-            print("       %-30s 有 %-22s → 社区 %s"
-                  % (gname, "、".join(have), gs))
-
-        # 五行五字是否同簇
-        wxs = [w for w in ("金", "木", "水", "火", "土") if w in names]
-        wsp = sorted({comm.get(w, 0) for w in wxs})
-        print()
-        print("    五行五字：%s → 社区 %s %s"
-              % ("、".join(wxs), wsp, "✅ 同簇" if len(wsp) == 1 else "❌ 分散"))
-
-        print()
-        if self.auditor.is_aligned_with_dao(decision):
-            print("[10] 合道审计：通过（%s）" % self.auditor.last_reason)
-            self.execute_action(decision)
-        else:
-            print("[10] 合道审计拦截：系统偏离，执行纠偏。")
-            print("     原因：%s" % self.auditor.last_reason)
-
     def execute_action(self, action):
-        print("[11] 执行：%s" % action.get("action", "（空动作）"))
+        print("[17] 执行：%s" % action.get("action", "（空动作）"))
 
 
 if __name__ == "__main__":

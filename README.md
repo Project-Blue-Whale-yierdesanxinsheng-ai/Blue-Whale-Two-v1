@@ -118,15 +118,39 @@ If three repair rounds cannot make it compliant, **nothing is executed.**
 
 ## Architecture
 
+### The seven core modules
+
+| # | Module | Responsibility |
+|---|---|---|
+| 1 | **Memory** `01_memory_and_space` | identity, relations, concept network from four data sources |
+| 2 | **Wu Xing** `02_wuxing_scheduler` | generation / overcoming scheduling, sensor mapping, leverage |
+| 3 | **Audit** `03_dao_auditor` | 4 base + 3 physical-ethics + 2 motor invariants |
+| 4 | **Embodiment** `04_embodied_io` | seven senses in, actuator out (simulated or HTTP) |
+| 5 | **Gravity** `05_gravity_field` | centripetal model for contributors and concepts |
+| 6 | **Combat** `06_physical_combat` | safe distance, interception timing, footwork energy |
+| 7 | **Swarm** `07_swarm_intelligence` | three-body formation, mutual aid, gravitational cover |
+
+### Supporting modules
+
+| Module | Responsibility |
+|---|---|
+| `08_edge_deployment` | ESP32 (MicroPython) port guide + 6 KB stripped kernel |
+| `09_motor_learning` | body schema, hardware fingerprint, soft/hard reset |
+| `10_self_evolution` | sandboxed patch proposals, lethal-mutation guard |
+| `data_sandbox` | desensitised demo data — runs with zero private corpora |
+
 ```
 01_memory_and_space/    identity + relations + concept network (4 data sources)
 02_wuxing_scheduler/    Wu Xing scheduling, sensor mapping, leverage
-03_dao_auditor/         4 base + 3 physical-ethics invariants
+03_dao_auditor/         4 base + 3 physical-ethics + 2 motor invariants
 04_embodied_io/         sensor input, actuator (simulated / HTTP gateway)
 05_gravity_field/       centripetal model for contributors and concepts
 06_physical_combat/     safe distance, interception, footwork energy
 07_swarm_intelligence/  3-body formation coordination
 08_edge_deployment/     ESP32 (MicroPython) port guide + stripped kernel
+09_motor_learning/      body schema + hardware change detection
+10_self_evolution/      self-modification guard
+data_sandbox/           demo data (runs with zero private files)
 ```
 
 **Package names start with digits**, which Python's `import` statement rejects. Load them with `importlib`:
@@ -238,3 +262,125 @@ All modules degrade gracefully: if a data source is missing, the corresponding f
 MIT. See [LICENSE](LICENSE).
 
 Built by **一二得三（Project Blue Whale）**.
+
+---
+
+## Twenty · Release packaging and the sandbox
+
+### 20.1 Why a sandbox
+
+The real system reads a 5.4 MB private archive. You cannot clone that. So the
+repository ships a **sandbox** in `data_sandbox/`:
+
+| File | Replaces | Contents |
+|---|---|---|
+| `demo_memory.md` | `memory_archive.md` | two desensitised childhood anchors |
+| `demo_ecosystem.md` | `word_ecosystem.md` | 16 character entries, 5 derivation records, 2 original readings |
+| `demo_concepts.json` | derived network | the full **90-node / 398-edge** concept graph |
+
+**Detection is automatic.** `MemorySystem` checks for the real files; if they are
+missing it points at the sandbox and reports `sandbox=True`. `main.py` prints
+which mode it is in at section `[0]`.
+
+```
+[0] Data source check
+    ** SANDBOX MODE ** (real data not found, degraded)
+      local memory_archive.md missing -> using demo_memory.md
+      1 memory_archive.md   : attached
+      ...
+```
+
+To point at your own data:
+
+```python
+MemorySystem(archive_path="/path/to/your_archive.md",
+             wordeco_path="/path/to/your_ecosystem.md")
+```
+
+Your archive only needs lines beginning with `======三对一二说的话======` (the
+marker the parser looks for) followed by the text.
+
+### 20.2 Quick start
+
+```bash
+git clone https://github.com/<your-name>/blue-whale-agi-core.git
+cd blue-whale-agi-core
+python --version     # 3.8+
+python main.py       # 23 sections, no pip install
+python run_tests.py  # 9 self-checks
+```
+
+`main.py` runs the full sweep in about 0.4 s with networking off by default.
+
+`run_tests.py` prints `[通过]` / `[失败]` per check and exits non-zero if any
+fail. It verifies module imports, memory loading, sandbox degradation, the
+five-element baseline of 0.5, the nine audit invariants, the soft/hard reset
+grading, the three evolution rules, and the MicroPython stub.
+
+### 20.3 Full section map
+
+| Section | What it shows |
+|---|---|
+| `[0]` `[0b]` | data sources, hardware probe (degrades to simulation) |
+| `[1]`–`[4]` | identity, childhood anchors, relations, concept network |
+| `[5]` `[5b]` `[5c]` | physical loop, fault drills, leverage (`F = R/k`) |
+| `[5d]` | **seven senses** (touch · sight · hearing) |
+| `[6]` `[6b]` | spatial combat, audio-visual linkage |
+| `[7]` | footwork energy → interception → audit rejection |
+| `[8]` | three-body swarm |
+| `[9]` | motor learning (error convergence) |
+| `[10]` | self-evolution guard |
+| `[11]` | hardware swap (soft / hard reset) |
+| `[12]`–`[17]` | condition field, energy flow, gravity ranking, communities, audit, execute |
+
+### 20.4 Mulitmodal sensing (Phase 14)
+
+Four new scalars join the five-element mapping:
+
+| Channel | Condition | Element | Formula |
+|---|---|---|---|
+| sight · distance | **< 0.50 m** | 金 (constraint) | `(0.50 − d) / 0.50`, cap +0.50 |
+| sight · light | **> 500 lux** | 火 (radiation) | `(lux − 500) / 1500`, cap +0.50 |
+| hearing · dB | **> 40 dB** | 金 (conflict) | `(db − 40) / 100` |
+| hearing · dB | **> 80 dB** | 火 (warning) | `(db − 80) / 60` |
+| hearing · Hz | **< 60 Hz** | 土 (ground tremor) | `(60 − f) / 120` |
+| hearing · Hz | **> 2000 Hz** | 金 (shrill) | `(f − 2000) / 4000` |
+
+**The mapping is one-sided by design.** Being far away or in the dark must never
+be read as an element shortage — otherwise a distant opponent makes the system
+think metal is deficient and start reinforcing structures.
+
+### 20.5 Motor learning and new limbs
+
+`MotorLearningEngine` keys on a hardware fingerprint, not a model number:
+
+| Condition | Action | Effect |
+|---|---|---|
+| same `hardware_uuid` | `none` | nothing |
+| uuid changed, params differ **< 10 %** | **`soft_reset`** | **keep** compensation, 100-sample break-in, 50 % speed cap |
+| uuid changed, params differ **≥ 10 %** | **`hard_reset`** | **zero** compensation, 30 % cap, toddler mode |
+
+Tuning moves 1 % per sample. Twelve samples took an 8 % error to 0.61 % without
+overshoot (theory `1/0.92 = 1.086957`, achieved `1.082640`).
+
+Two audit invariants enforce this: `NEW_LIMB_RESTRICTION` caps everything at
+**0.20** during a hard reset, and `SOFT_BREAK_IN_LIMIT` caps fast/momentum
+actions at **0.50** during break-in.
+
+### 20.6 Self-evolution guard
+
+Patches generated by the system itself never touch the working tree.
+
+1. Every patch goes through a sandbox scan (8 forbidden patterns).
+2. Nothing is written except a `.patch` file in a pending directory.
+3. Any patch touching `03_dao_auditor` raises **`LethalMutationBlocked`**.
+
+The third rule is not a retry condition. The auditor is the ethical floor; a
+system that can propose edits to its own floor has no floor.
+
+### 20.7 Path configuration
+
+Paths resolve from `_BASE_DIR` (the package directory) and `_DATA_ROOT` (its
+parent). If your layout differs, edit the `*_CANDIDATES` constants in
+`01_memory_and_space/memory_core.py`, or pass paths to `MemorySystem`.
+`scripts/desensitize.py` rewrites hard-coded absolute paths (dry-run by default).

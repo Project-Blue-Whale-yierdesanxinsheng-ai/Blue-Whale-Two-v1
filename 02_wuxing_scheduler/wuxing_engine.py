@@ -139,6 +139,81 @@ class WuXingEngine:
         else:
             no_sensor.append("震动")
 
+        # ── Phase 14：视觉（距离 / 光照）──
+        # **单向正向映射**：只在"过近/过强"时加分，不加负分。
+        # 理由：远处或全黑不该被误判成元素"不足"（<0.35）而触发补给动作。
+        def _dpos(raw):
+            return max(0.0, min(0.50, raw))
+
+        d = sensory_data.get("distance_front")
+        if d is not None:
+            d = float(d)
+            # 三的原话：正前方 **< 0.5m** 才映射为金（受迫/切割感）
+            delta = _dpos((0.50 - d) / 0.50)
+            before = e["金"]
+            e["金"] = self._clamp(e["金"] + delta)
+            reasons.append(
+                "正前方 %.2fm（过近线 0.50m）→ 金 %.2f → %.2f%s"
+                % (d, before, e["金"],
+                   "（**过近，受迫感↑**）" if delta > 0.01 else "（安全距离外，不加压）"))
+        else:
+            no_sensor.append("视觉距离")
+
+        lux = sensory_data.get("light_level")
+        if lux is not None:
+            lux = float(lux)
+            # 三的原话：光照 **过强** 映射为火（能量/辐射）
+            delta = _dpos((lux - 500.0) / 1500.0)
+            before = e["火"]
+            e["火"] = self._clamp(e["火"] + delta)
+            reasons.append(
+                "光照 %.0f lux（强光线 500）→ 火 %.2f → %.2f%s"
+                % (lux, before, e["火"],
+                   "（**强光，辐射↑**）" if delta > 0.01 else "（常态光，不加压）"))
+        else:
+            no_sensor.append("光照")
+
+        # ── Phase 14：听觉（分贝 / 主频）──
+        db = sensory_data.get("sound_db")
+        if db is not None:
+            db = float(db)
+            # 底噪 40dB。越吵 → 金（震动/冲突）越强
+            dk = _dpos((db - 40.0) / 100.0)
+            before = e["金"]
+            e["金"] = self._clamp(e["金"] + dk)
+            # 超过 80dB → 额外给 火（警示）
+            dw = _dpos(max(0.0, (db - 80.0) / 60.0))
+            if dw > 0:
+                e["火"] = self._clamp(e["火"] + dw)
+            reasons.append(
+                "噪音 %.0f dB（底噪 40）→ 金 %.2f → %.2f%s"
+                % (db, before, e["金"],
+                   "（**>80dB 警示 → 火 %.2f**）" % e["火"] if dw > 0 else ""))
+        else:
+            no_sensor.append("听觉分贝")
+
+        fr = sensory_data.get("sound_freq")
+        if fr is not None:
+            fr = float(fr)
+            # 低于 60Hz 的沉闷低频 → 土（大地震动/异常）
+            dt = _dpos(max(0.0, (60.0 - fr) / 120.0))
+            if dt > 0:
+                before = e["土"]
+                e["土"] = self._clamp(e["土"] + dt)
+                reasons.append("主频 %.0f Hz（<60 低频）→ 土 %.2f → %.2f（沉闷异常）"
+                               % (fr, before, e["土"]))
+            # 高于 2000Hz 的尖锐高频 → 额外 金
+            dh = _dpos(max(0.0, (fr - 2000.0) / 4000.0))
+            if dh > 0:
+                before = e["金"]
+                e["金"] = self._clamp(e["金"] + dh)
+                reasons.append("主频 %.0f Hz（>2000 高频）→ 金 %.2f → %.2f（尖锐）"
+                               % (fr, before, e["金"]))
+            if dt == 0 and dh == 0:
+                reasons.append("主频 %.0f Hz → 落在正常带，不额外映射" % fr)
+        else:
+            no_sensor.append("听觉主频")
+
         if no_sensor:
             reasons.append("无传感器：%s → 固定 0.5" % "、".join(no_sensor))
 
@@ -196,7 +271,7 @@ class WuXingEngine:
         if spatial:
             pr = spatial.get("priority")
             spatial_info = {"priority": pr, "reason": spatial.get("reason", "")}
-            if pr in ("防御", "距离控制"):
+            if pr in ("防御", "距离控制", "预警", "稳桩"):
                 spatial_block = True
                 for item in spatial.get("actions", []):
                     if isinstance(item, (tuple, list)) and len(item) == 2:
@@ -219,7 +294,7 @@ class WuXingEngine:
                 actions.append({
                     "name": "暂缓攻击性克制", "intensity": 0.0,
                     "mode": "空间压制", "controller": "-", "target": el,
-                    "reason": "%s 过旺（%.2f），但空间极危 → 攻击动作推迟，先卸力"
+                    "reason": "%s 过旺（%.2f），但已进入防御/预警 → 攻击动作推迟，先卸力"
                               % (el, before[el]),
                 })
                 continue
